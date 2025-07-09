@@ -4,10 +4,10 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
 
-import authRoutes from './api/authRoutes';
-import videoRoutes from './api/videoRoutes';
-import aiRoutes from './api/aiRoutes';
-import socialAuthRoutes from './api/socialAuthRoutes';
+import authRoutes from '../api/authRoutes';
+import videoRoutes from '../api/videoRoutes';
+import aiRoutes from '../api/aiRoutes';
+import socialAuthRoutes from '../api/socialAuthRoutes';
 
 import './config/passport'; // Initialize passport config
 

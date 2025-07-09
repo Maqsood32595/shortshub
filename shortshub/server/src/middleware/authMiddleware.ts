@@ -14,7 +14,7 @@ passport.use('google', new GoogleStrategy({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     callbackURL: `${process.env.SERVER_URL}/api/auth/google/callback`
 },
-async (accessToken, refreshToken, profile, done) => {
+async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
     const { id, displayName, emails } = profile;
     const email = emails?.[0].value;
 
@@ -69,7 +69,7 @@ passport.use('youtube', new YouTubeV3Strategy({
         prompt: 'consent' // Re-prompt for consent to ensure a refresh token is issued
     }
 },
-async (req: any, accessToken, refreshToken, profile, done) => {
+async (req: any, accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
     // req.user is populated by our authMiddleware
     const userId = req.user.id; 
 
