@@ -8,7 +8,7 @@ channel = "stable-24_05"
 run = ["sh", "-c", "cd server && npm run build && npm start"]
 
 [workflows]
-runButton = "Start Server"
+runButton = "Build and Start"
 
 [[workflows.workflow]]
 name = "Development"
@@ -27,3 +27,12 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && npm run build && npm start"
+
+[[workflows.workflow]]
+name = "Build and Start"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm install && npm run build && npm start"

@@ -1,11 +1,14 @@
-
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
-import passport from 'passport';
-import path from 'path';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import path from 'path';
+import passport from 'passport';
+
+// Load environment variables
+dotenv.config();
 
 // Import routes
 import authRoutes from './api/authRoutes';
@@ -16,10 +19,7 @@ import aiRoutes from './api/aiRoutes';
 // Import middleware
 import { authenticateToken } from './middleware/authMiddleware';
 
-// Load environment variables
-dotenv.config();
-
-// Initialize passport configuration
+// Import config
 import './config/passport';
 
 const app = express();
@@ -54,7 +54,7 @@ app.use('/api/ai', aiRoutes);
 // Serve static files (React app)
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../../build')));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../../build/index.html'));
   });
