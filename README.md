@@ -3,115 +3,145 @@
 
 ShortsHub is a full-stack web application that empowers content creators to efficiently repurpose, create, schedule, and publish short-form video content across multiple social media platforms like YouTube Shorts, TikTok, and Instagram Reels.
 
-The platform's core is a robust backend that leverages Google Cloud services for scalability, including AI-powered content creation with the Gemini and Imagen APIs, asynchronous video processing, and secure user management.
+## Quick Start on Replit
 
-## Core Features
+1. **Environment Setup**
+   - Copy `.env.example` to `.env`
+   - Fill in your Google Cloud and OAuth credentials
+
+2. **Run the Application**
+   - Click the "Run" button to start the server
+   - The application will be available at the provided URL
+
+3. **Development**
+   - Use the "Development" workflow for hot-reloading during development
+   - Server runs on port 5001 by default
+
+## Features
 
 ### Content Management & Scheduling
-- **Centralized "My Shorts" Library**: An immersive, "For You" style, full-screen scrollable feed to view and manage all your short-form video content.
-- **Direct Video Uploads**: Upload your existing short video files (MP4, MOV) directly to the platform via Google Cloud Storage.
-- **Automated Video Reformatting**: Asynchronous, serverless processing to automatically adapt videos to platform-compliant specifications (9:16 aspect ratio, duration limits) for YouTube, TikTok, and Reels.
-- **Multi-Platform Scheduling**: A granular interface to schedule your finalized shorts for upload to connected social media accounts at a specific date and time. (Note: Scheduling execution via backend API is planned).
+- **Centralized "My Shorts" Library**: Full-screen scrollable feed to view and manage all your short-form video content
+- **Direct Video Uploads**: Upload your existing short video files directly to the platform
+- **Multi-Platform Scheduling**: Schedule your finalized shorts for upload to connected social media accounts
 
 ### AI-Powered Creation & Repurposing
-- **Repurpose Existing Videos**: Select an uploaded long-form video and use AI to generate multiple, engaging clip ideas complete with catchy titles, descriptions, and suggested timestamps.
-- **AI Content Refinement**: Enhance your titles and descriptions with a single click using AI to make them more engaging and SEO-friendly.
-- **AI Thumbnail Generation**: Create unique, clickable thumbnails for your shorts from a simple text prompt using Google's Imagen-3 model.
-- **AI Video Editor (Text-to-Video)**: A dedicated interface to generate entirely new short videos from a textual description, simulating Google's Veo model for creating filler or B-roll content.
+- **Repurpose Existing Videos**: Use AI to generate multiple engaging clip ideas from long-form videos
+- **AI Content Refinement**: Enhance titles and descriptions with AI
+- **AI Thumbnail Generation**: Create unique thumbnails from text prompts
+- **AI Video Editor**: Generate new short videos from textual descriptions
 
 ### Account & Platform Integration
-- **Secure User Authentication**: Sign up and log in with a traditional email/password or with a Google account (OAuth 2.0). Sessions are securely managed with JWTs stored in `HttpOnly` cookies.
-- **Social Account Connections**: Securely connect your YouTube account using OAuth 2.0 to authorize the application for future uploads and data access.
+- **Secure User Authentication**: Sign up with email/password or Google OAuth
+- **Social Account Connections**: Connect your YouTube account for uploads
 
-## Tech Stack & Architecture
+## Tech Stack
 
-ShortsHub is built with a modern, scalable architecture designed to handle complex media processing and AI tasks efficiently.
+- **Frontend**: React 19 with TypeScript, styled with Tailwind CSS
+- **Backend**: Node.js with Express.js and TypeScript
+- **Database**: PostgreSQL for user data and video metadata
+- **Authentication**: Passport.js for OAuth flows and JWT for session management
+- **File Storage**: Google Cloud Storage for uploads and processed videos
+- **AI & ML**: Google Gemini API for text generation and Imagen-3 for image generation
 
-- **Frontend**: **React 19** with **TypeScript** for a modern, type-safe UI, styled with **Tailwind CSS**.
-- **Backend**: **Node.js** with **Express.js** and **TypeScript**, built with a clean separation of concerns (services, routes, middleware).
-- **Database**: **PostgreSQL** (designed for Google Cloud SQL) for storing user data, video metadata, and social account tokens.
-- **Authentication**: **Passport.js** for handling Google and YouTube OAuth 2.0 flows, and **JWT** for session management.
-- **File Storage**: **Google Cloud Storage** for storing raw uploads, AI-generated outputs, and platform-ready processed videos.
-- **AI & ML**: **Google Gemini API** for text-based generation and **Imagen-3** for image generation.
-- **Asynchronous Processing**: **Google Cloud Pub/Sub** (architecture in place) to decouple long-running tasks like video transcoding and AI generation from the user request, ensuring a responsive UI.
-
-```
-PROJECT STRUCTURE
-.
-├── App.tsx
-├── ... (other frontend components & pages) ...
-└── server/
-    ├── package.json
-    ├── tsconfig.json
-    └── src/
-        ├── api/                # API route handlers
-        ├── config/             # Database & Passport config
-        ├── middleware/         # Auth middleware
-        ├── services/           # Services for GCS, Pub/Sub
-        └── types/              # Express type extensions
-```
-
-## Local Development Setup
+## Development Setup
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [PostgreSQL](https://www.postgresql.org/) database running locally or on the cloud.
-- Access to Google Cloud Platform for API keys and service credentials.
+- Node.js (v18 or higher)
+- PostgreSQL database
+- Google Cloud Platform account with API keys
 
-### Backend Setup
+### Local Development
 
-1.  **Navigate to the server directory:**
-    ```bash
-    cd server
-    ```
+1. **Install Dependencies**
+   ```bash
+   cd server
+   npm install
+   ```
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+2. **Set up Environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials
+   ```
 
-3.  **Set up the database:**
-    - Create a new PostgreSQL database.
-    - Execute the schema from `database.sql` (if provided, or create tables based on API logic) to set up the required tables.
+3. **Run Database Migrations**
+   ```bash
+   cd server
+   npm run migrate
+   ```
 
-4.  **Configure Environment Variables:**
-    - Create a `.env` file in the `server/` directory.
-    - Copy the contents from `server/.env.example` and fill in your credentials.
+4. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
 
-    ```env
-    # Database
-    DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE"
+### Production Deployment on Replit
 
-    # Authentication
-    JWT_SECRET="YOUR_SUPER_SECRET_KEY"
-    CLIENT_URL="http://localhost:3000"
-    SERVER_URL="http://localhost:5001"
+1. **Configure Environment Variables**
+   - Set up your `.env` file with production values
+   - Ensure database and Google Cloud credentials are correct
 
-    # Google OAuth for Login
-    GOOGLE_CLIENT_ID="your_google_client_id.apps.googleusercontent.com"
-    GOOGLE_CLIENT_SECRET="your_google_client_secret"
+2. **Deploy**
+   - Push your code to Replit
+   - The app will automatically build and deploy
+   - Access your app at the provided Replit URL
 
-    # YouTube OAuth for Account Connection
-    YOUTUBE_CLIENT_ID="your_youtube_client_id.apps.googleusercontent.com"
-    YOUTUBE_CLIENT_SECRET="your_youtube_client_secret"
-    
-    # Google Cloud & GenAI
-    API_KEY="your_google_genai_api_key"
-    GCP_PROJECT_ID="your_gcp_project_id"
-    GCS_BUCKET_NAME="your_gcs_bucket_name"
-    ```
+## API Endpoints
 
-5.  **Run the backend server:**
-    ```bash
-    npm run dev
-    ```
-    The server will be running on `http://localhost:5001`.
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/google` - Google OAuth
+- `POST /api/auth/logout` - User logout
 
-### Frontend Setup
+### Videos
+- `GET /api/videos` - Get user's videos
+- `POST /api/videos/upload` - Upload video
+- `GET /api/videos/:id` - Get specific video
 
-The frontend is a single-page application built with modern tooling that runs directly in the browser without a separate build step for development.
+### AI Features
+- `POST /api/ai/generate-ideas` - Generate video ideas
+- `POST /api/ai/refine-content` - Refine titles/descriptions
+- `POST /api/ai/generate-thumbnail` - Generate thumbnails
 
-1.  **Open `index.html` in a web browser.**
-    - Using a tool like the **Live Server** extension for VS Code is highly recommended for the best development experience with hot-reloading.
+### Social Integration
+- `GET /api/social/connections` - Get connected accounts
+- `GET /api/social/youtube` - Connect YouTube account
 
-The application should now be fully running and accessible at your live server's address (e.g., `http://localhost:3000` or `http://127.0.0.1:5500`).
+## Environment Variables
+
+Required environment variables:
+
+```env
+# Database
+DATABASE_URL=postgresql://username:password@host:port/database
+
+# JWT
+JWT_SECRET=your-jwt-secret
+
+# Google Cloud
+GCP_PROJECT_ID=your-project-id
+GCS_BUCKET_NAME=your-bucket-name
+API_KEY=your-genai-api-key
+
+# OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+YOUTUBE_CLIENT_ID=your-youtube-client-id
+YOUTUBE_CLIENT_SECRET=your-youtube-client-secret
+
+# Application
+CLIENT_URL=http://localhost:3000
+SERVER_URL=http://localhost:5001
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.

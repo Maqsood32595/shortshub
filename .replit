@@ -5,4 +5,25 @@ run = "node index.js"
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "node index.js"]
+run = ["sh", "-c", "cd server && npm run build && npm start"]
+
+[workflows]
+runButton = "Start Server"
+
+[[workflows.workflow]]
+name = "Development"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run dev"
+
+[[workflows.workflow]]
+name = "Start Server"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run build && npm start"
