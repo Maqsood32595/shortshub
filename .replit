@@ -36,4 +36,16 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm install && npm run build && npm start"
+args = "cd shortshub && npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub/server && npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub/server && npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node shortshub/index.js"

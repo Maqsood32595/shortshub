@@ -15,8 +15,8 @@ app.use('/api', createProxyMiddleware({
   }
 }));
 
-// Serve static files from build directory
-app.use(express.static(path.join(__dirname, 'build')));
+// Serve static files from current directory
+app.use(express.static(path.join(__dirname)));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -25,9 +25,11 @@ app.get('/health', (req, res) => {
 
 // Catch all handler for React app
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 ShortsHub running on port ${PORT}`);
+  console.log(`🌐 Frontend: http://localhost:${PORT}`);
+  console.log(`🔧 Backend: http://localhost:5001`);
 });
