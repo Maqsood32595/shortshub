@@ -1,0 +1,1908 @@
+Check current project structure and existing deployment files
+find . -name ".yaml" -o -name ".yml" -o -name "app.yaml" -o -name "cloudbuild.yaml" -o -name "Dockerfile" -o -name "docker-compose.yml" | head -10
+
+Output:
+</shell_result>
+</context>
+
+<context>
+<rationale>I need to check if there's a main server entry point and understand the backend structure to create the missing index.ts file.</rationale>
+<shell_result>Shell script executed:
+Check for main server entry point
+find server -name "index.ts" -o -name "server.ts" -o -name "app.ts" -o -name "main.ts" | xargs ls -la 2>/dev/null || echo "No main server file found"
+
+Output:
+-rw-r--r-- 1 jailuser jailuser 1158 Jul 8 22:03 server/src/middleware/index.ts
+
+</shell_result>
+</context>
+
+<context>
+<rationale>I need to check what Google Cloud services are being used in the existing code to understand the deployment requirements.</rationale>
+<shell_result>Shell script executed:
+Search for Google Cloud service usage in the codebase
+grep -r "@Google-Cloud" server/ --include=".ts" --include=".js" || echo "No Google Cloud dependencies found in server"
+
+Output:
+server/src/services/storageService.ts:import { Storage } from '@google-cloud/storage';
+
+</shell_result>
+</context>
+
+<context>
+<rationale>I need to check the database configuration and see if there are any existing migration scripts.</rationale>
+<shell_result>Shell script executed:
+Check for database configuration and migration files
+find . -name "*.sql" -o -name "migration" -o -name "schema" | xargs ls -la 2>/dev/null || echo "No database files found"
+
+Output:
+total 32
+drwxr-xr-x 6 jailuser jailuser 240 Jul 8 22:03 .
+drwxr-xr-x 5 jailuser jailuser 180 Jul 8 22:03 ..
+drwxr-xr-x 5 jailuser jailuser 220 Jul 8 22:03 .git
+-rw-r--r-- 1 jailuser jailuser 295 Jul 8 22:03 .gitignore
+-rw-r--r-- 1 jailuser jailuser 4953 Jul 8 22:03 App.tsx
+-rw-r--r-- 1 jailuser jailuser 6151 Jul 8 22:03 README.md
+drwxr-xr-x 2 jailuser jailuser 100 Jul 8 22:03 components
+-rw-r--r-- 1 jailuser jailuser 1690 Jul 8 22:03 index.html
+-rw-r--r-- 1 jailuser jailuser 350 Jul 8 22:03 index.tsx
+-rw-r--r-- 1 jailuser jailuser 285 Jul 8 22:03 metadata.json
+drwxr-xr-x 2 jailuser jailuser 180 Jul 8 22:03 pages
+drwxr-xr-x 3 jailuser jailuser 100 Jul 8 22:03 server
+
+</shell_result>
+</context>
+
+<context>
+<rationale>I need to check if there are any existing environment configuration files to understand the current setup.</rationale>
+<shell_result>Shell script executed:
+Look for environment configuration files
+find . -name ".env*" -o -name "environment" -o -name "config" | head -10
+
+Output:
+./.git/config
+./server/src/config
+./server/tsconfig.json
+
+</shell_result>
+</context>
+
+<changeScript>
+```shell
+# ====== STEP 1: Create main server entry point ======
+mkdir -p server/src
+
+# Create the main server index.ts file
+cat << 'EOF' > server/src/index.ts
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import helmet from 'helmet';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import path from 'path';
+import passport from 'passport';
+
+// Import routes
+import authRoutes from './api/authRoutes';
+import socialAuthRoutes from './api/socialAuthRoutes';
+import videoRoutes from './api/videoRoutes';
+import aiRoutes from './api/aiRoutes';
+
+// Import middleware
+import { authenticateToken } from './middleware/authMiddleware';
+
+// Import config
+import './config/passport';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5001;
+
+// Security middleware
+app.use(helmet());
+app.use(compression());
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+}));
+
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
+
+// Passport middleware
+app.use(passport.initialize());
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/social', socialAuthRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/ai', aiRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  });
+}
+
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { details: err.message })
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+export default app;
+EOF
+
+# ====== STEP 2: Create Google Cloud App Engine configuration ======
+cat << 'EOF' > app.yaml
+runtime: nodejs20
+
+env_variables:
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL}
+  JWT_SECRET: ${JWT_SECRET}
+  CLIENT_URL: ${CLIENT_URL}
+  SERVER_URL: ${SERVER_URL}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
+  YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET}
+  API_KEY: ${API_KEY}
+  GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+  GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+handlers:
+- url: /static
+  static_dir: client/build/static
+  secure: always
+
+- url: /.*
+  script: auto
+  secure: always
+EOF
+
+# ====== STEP 3: Create Cloud Build configuration ======
+cat << 'EOF' > cloudbuild.yaml
+steps:
+  # Install backend dependencies
+  - name: 'node:20'
+    entrypoint: npm
+    args: ['install']
+    dir: 'server'
+
+  # Build backend
+  - name: 'node:20'
+    entrypoint: npm
+    args: ['run', 'build']
+    dir: 'server'
+
+  # Install frontend dependencies
+  - name: 'node:20'
+    entrypoint: npm
+    args: ['install']
+    dir: '.'
+
+  # Build frontend
+  - name: 'node:20'
+    entrypoint: npm
+    args: ['run', 'build']
+    dir: '.'
+
+  # Deploy to App Engine
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['app', 'deploy', '--quiet']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: 1200s
+EOF
+
+# ====== STEP 4: Create Dockerfile for containerized deployment ======
+cat << 'EOF' > Dockerfile
+# Use official Node.js runtime as base image
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY server/package*.json ./server/
+COPY package*.json ./
+
+# Install backend dependencies
+RUN cd server && npm ci --only=production
+
+# Install frontend dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY server/ ./server/
+COPY . .
+
+# Build backend
+RUN cd server && npm run build
+
+# Build frontend
+RUN npm run build
+
+# Expose port
+EXPOSE 8080
+
+# Set environment to production
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Start the server
+CMD ["node", "server/dist/index.js"]
+EOF
+
+# ====== STEP 5: Create root package.json for full-stack build ======
+cat << 'EOF' > package.json
+{
+  "name": "shortshub-app",
+  "version": "1.0.0",
+  "description": "ShortsHub.app - Multi-platform video uploading and scheduling",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "start": "node server/dist/index.js",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "vite",
+    "build": "npm run client:build && npm run server:build",
+    "client:build": "vite build",
+    "server:build": "cd server && npm run build",
+    "deploy": "gcloud app deploy --quiet",
+    "logs": "gcloud app logs tail -s default",
+    "test": "cd server && npm test"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.0",
+    "axios": "^1.3.4",
+    "lucide-react": "^0.344.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.28",
+    "@types/react-dom": "^18.0.11",
+    "@types/node": "^20.11.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "concurrently": "^7.6.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24"
+  }
+}
+EOF
+
+# ====== STEP 6: Create Vite configuration ======
+cat << 'EOF' > vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+  build: {
+    outDir: 'client/build',
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          utils: ['axios']
+        }
+      }
+    }
+  }
+})
+EOF
+
+# ====== STEP 7: Create TypeScript configuration ======
+cat << 'EOF' > tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "*.ts", "*.tsx"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+EOF
+
+# ====== STEP 8: Create database schema ======
+cat << 'EOF' > database.sql
+-- ShortsHub Database Schema
+
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    display_name VARCHAR(255),
+    google_id VARCHAR(255) UNIQUE,
+    profile_picture TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Social accounts table
+CREATE TABLE social_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    platform VARCHAR(50) NOT NULL, -- 'youtube', 'tiktok', 'instagram'
+    platform_user_id VARCHAR(255) NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, platform)
+);
+
+-- Videos table
+CREATE TABLE videos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    file_path TEXT NOT NULL,
+    thumbnail_path TEXT,
+    duration INTEGER, -- in seconds
+    file_size BIGINT, -- in bytes
+    format VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'processing', -- 'processing', 'ready', 'failed'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Scheduled posts table
+CREATE TABLE scheduled_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    video_id UUID REFERENCES videos(id) ON DELETE CASCADE,
+    platform VARCHAR(50) NOT NULL,
+    scheduled_time TIMESTAMP NOT NULL,
+    title VARCHAR(255),
+    description TEXT,
+    status VARCHAR(50) DEFAULT 'scheduled', -- 'scheduled', 'posted', 'failed'
+    platform_post_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AI generations table
+CREATE TABLE ai_generations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL, -- 'thumbnail', 'title', 'description', 'video'
+    prompt TEXT NOT NULL,
+    result TEXT,
+    status VARCHAR(50) DEFAULT 'processing', -- 'processing', 'completed', 'failed'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_google_id ON users(google_id);
+CREATE INDEX idx_social_accounts_user_id ON social_accounts(user_id);
+CREATE INDEX idx_videos_user_id ON videos(user_id);
+CREATE INDEX idx_scheduled_posts_user_id ON scheduled_posts(user_id);
+CREATE INDEX idx_scheduled_posts_scheduled_time ON scheduled_posts(scheduled_time);
+CREATE INDEX idx_ai_generations_user_id ON ai_generations(user_id);
+EOF
+
+# ====== STEP 9: Create database migration script ======
+cat << 'EOF' > server/src/scripts/migrate.ts
+import { Pool } from 'pg';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+async function runMigration() {
+  try {
+    console.log('Running database migration...');
+    
+    const schema = readFileSync(join(__dirname, '../../../database.sql'), 'utf8');
+    
+    await pool.query(schema);
+    
+    console.log('Migration completed successfully!');
+    process.exit(0);
+  } catch (error) {
+    console.error('Migration failed:', error);
+    process.exit(1);
+  }
+}
+
+runMigration();
+EOF
+
+# ====== STEP 10: Create deployment script ======
+cat << 'EOF' > deploy.sh
+#!/bin/bash
+
+# ShortsHub.app Deployment Script for Google Cloud
+
+set -e
+
+echo "🚀 Starting ShortsHub.app deployment to Google Cloud..."
+
+# Configuration
+PROJECT_ID=${GCP_PROJECT_ID:-"your-project-id"}
+REGION=${GCP_REGION:-"us-central1"}
+DB_INSTANCE_NAME=${DB_INSTANCE_NAME:-"shortshub-db"}
+BUCKET_NAME=${GCS_BUCKET_NAME:-"shortshub-storage"}
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if gcloud is installed
+if ! command -v gcloud &> /dev/null; then
+    log_error "gcloud CLI is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if user is logged in
+if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q .; then
+    log_error "Please run 'gcloud auth login' first"
+    exit 1
+fi
+
+# Set project
+log_info "Setting project to $PROJECT_ID..."
+gcloud config set project $PROJECT_ID
+
+# Enable required APIs
+log_info "Enabling required Google Cloud APIs..."
+gcloud services enable appengine.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable sqladmin.googleapis.com
+gcloud services enable storage-api.googleapis.com
+gcloud services enable pubsub.googleapis.com
+gcloud services enable secretmanager.googleapis.com
+gcloud services enable cloudscheduler.googleapis.com
+
+# Create App Engine application if it doesn't exist
+if ! gcloud app describe &> /dev/null; then
+    log_info "Creating App Engine application..."
+    gcloud app create --region=$REGION
+fi
+
+# Create Cloud SQL instance
+log_info "Creating Cloud SQL PostgreSQL instance..."
+if ! gcloud sql instances describe $DB_INSTANCE_NAME &> /dev/null; then
+    gcloud sql instances create $DB_INSTANCE_NAME \
+        --database-version=POSTGRES_15 \
+        --tier=db-f1-micro \
+        --region=$REGION \
+        --storage-type=HDD \
+        --storage-size=20GB \
+        --backup-start-time=03:00 \
+        --maintenance-window-day=SUN \
+        --maintenance-window-hour=04
+else
+    log_warn "Cloud SQL instance $DB_INSTANCE_NAME already exists"
+fi
+
+# Create database
+log_info "Creating database..."
+gcloud sql databases create shortshub --instance=$DB_INSTANCE_NAME || log_warn "Database might already exist"
+
+# Create Cloud Storage bucket
+log_info "Creating Cloud Storage bucket..."
+if ! gsutil ls gs://$BUCKET_NAME &> /dev/null; then
+    gsutil mb -p $PROJECT_ID -c STANDARD -l $REGION gs://$BUCKET_NAME
+    
+    # Set bucket permissions
+    gsutil iam ch allUsers:objectViewer gs://$BUCKET_NAME
+else
+    log_warn "Bucket $BUCKET_NAME already exists"
+fi
+
+# Create Pub/Sub topics
+log_info "Creating Pub/Sub topics..."
+gcloud pubsub topics create video-processing || log_warn "Topic might already exist"
+gcloud pubsub topics create ai-generation || log_warn "Topic might already exist"
+
+# Create secrets in Secret Manager
+log_info "Setting up secrets in Secret Manager..."
+echo "your-jwt-secret-key-here" | gcloud secrets create jwt-secret --data-file=- || log_warn "Secret might already exist"
+echo "your-google-client-secret" | gcloud secrets create google-client-secret --data-file=- || log_warn "Secret might already exist"
+echo "your-youtube-client-secret" | gcloud secrets create youtube-client-secret --data-file=- || log_warn "Secret might already exist"
+echo "your-genai-api-key" | gcloud secrets create genai-api-key --data-file=- || log_warn "Secret might already exist"
+
+# Build and deploy
+log_info "Building and deploying application..."
+npm run build
+gcloud app deploy --quiet
+
+# Run database migrations
+log_info "Running database migrations..."
+cd server
+npm run migrate || log_warn "Migration failed - you may need to run it manually"
+cd ..
+
+# Set up Cloud Scheduler for cleanup jobs
+log_info "Setting up scheduled jobs..."
+gcloud scheduler jobs create http cleanup-temp-files \
+    --schedule="0 2 * * *" \
+    --uri="https://$PROJECT_ID.appspot.com/api/admin/cleanup" \
+    --http-method=POST \
+    --headers="Content-Type=application/json" \
+    --body="{}" || log_warn "Scheduled job might already exist"
+
+log_info "✅ Deployment completed successfully!"
+echo ""
+echo "🌐 Your application is now available at: https://$PROJECT_ID.appspot.com"
+echo "📊 Monitor your app: https://console.cloud.google.com/appengine?project=$PROJECT_ID"
+echo "🗄️  Database: https://console.cloud.google.com/sql/instances/$DB_INSTANCE_NAME?project=$PROJECT_ID"
+echo "🪣 Storage: https://console.cloud.google.com/storage/browser/$BUCKET_NAME?project=$PROJECT_ID"
+echo ""
+echo "📝 Next steps:"
+echo "1. Update your environment variables in the Google Cloud Console"
+echo "2. Configure OAuth consent screen and credentials"
+echo "3. Set up domain mapping if needed"
+echo "4. Configure monitoring and alerts"
+EOF
+
+# Make deployment script executable
+chmod +x deploy.sh
+
+# ====== STEP 11: Create .gcloudignore file ======
+cat << 'EOF' > .gcloudignore
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+
+# Build files
+dist/
+build/
+*.tsbuildinfo
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Testing
+coverage/
+.nyc_output/
+*.test.js
+
+# Logs
+logs/
+*.log
+
+# Development tools
+.eslintrc.*
+.prettierrc.*
+jest.config.*
+webpack.config.*
+
+# Documentation
+docs/
+README.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+EOF
+
+# ====== STEP 12: Create environment template ======
+cat << 'EOF' > .env.example
+# Database Configuration
+DATABASE_URL=postgresql://username:password@localhost:5432/shortshub
+
+# JWT Secret (generate a strong secret key)
+JWT_SECRET=your-super-secret-jwt-key-here
+
+# Application URLs
+CLIENT_URL=http://localhost:3000
+SERVER_URL=http://localhost:5001
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# YouTube API Configuration
+YOUTUBE_CLIENT_ID=your-youtube-client-id.apps.googleusercontent.com
+YOUTUBE_CLIENT_SECRET=your-youtube-client-secret
+
+# Google Cloud Configuration
+GCP_PROJECT_ID=your-gcp-project-id
+GCS_BUCKET_NAME=your-gcs-bucket-name
+API_KEY=your-google-genai-api-key
+
+# Optional: Redis for caching
+REDIS_URL=redis://localhost:6379
+
+# Optional: Email service
+EMAIL_SERVICE=gmail
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+
+# Environment
+NODE_ENV=development
+PORT=5001
+EOF
+
+# ====== STEP 13: Update server package.json with missing dependencies ======
+cat << 'EOF' > server/package.json
+{
+  "name": "shortshub-server",
+  "version": "1.0.0",
+  "description": "Backend server for ShortsHub.app",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "migrate": "ts-node src/scripts/migrate.ts",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.11.0",
+    "@google-cloud/pubsub": "^4.5.0",
+    "@google/genai": "^1.8.0",
+    "bcrypt": "^5.1.1",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-youtube-v3": "^2.1.0",
+    "pg": "^8.12.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.7.5",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.14.9",
+    "@types/passport": "^1.0.16",
+    "@types/passport-google-oauth20": "^2.0.16",
+    "@types/passport-youtube-v3": "^2.0.4",
+    "@types/pg": "^8.11.6",
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.2",
+    "ts-jest": "^29.1.5",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.3"
+  }
+}
+EOF
+
+# ====== STEP 14: Create health check endpoint ======
+cat << 'EOF' > server/src/api/healthRoutes.ts
+import express from 'express';
+import { pool } from '../config/db';
+
+const router = express.Router();
+
+// Basic health check
+router.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Database health check
+router.get('/db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.status(200).json({
+      status: 'healthy',
+      database: 'connected',
+      timestamp: result.rows[0].now
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+
+// System information
+router.get('/info', (req, res) => {
+  res.json({
+    node_version: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    memory: process.memoryUsage(),
+    uptime: process.uptime(),
+    env: process.env.NODE_ENV || 'development'
+  });
+});
+
+export default router;
+EOF
+
+# ====== STEP 15: Create final deployment documentation ======
+cat << 'EOF' > DEPLOYMENT.md
+# ShortsHub.app Deployment Guide
+
+## Prerequisites
+
+1. **Google Cloud Platform Setup**
+   - Create a new GCP project or use existing one
+   - Enable billing on your project
+   - Install and configure Google Cloud SDK
+   - Run `gcloud auth login` to authenticate
+
+2. **Domain Setup (Optional)**
+   - Purchase a domain or use a subdomain
+   - Configure DNS to point to your App Engine application
+
+## Quick Deployment
+
+1. **Clone and Setup**
+   ```bash
+   git clone <your-repo-url>
+   cd shortshub-app
+Configure Environment
+
+cp .env.example .env
+# Edit .env with your actual values
+Set GCP Project
+
+export GCP_PROJECT_ID="your-project-id"
+export GCP_REGION="us-central1"
+Run Deployment Script
+
+./deploy.sh
+Manual Deployment Steps
+1. Enable Google Cloud APIs
+gcloud services enable appengine.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable sqladmin.googleapis.com
+gcloud services enable storage-api.googleapis.com
+gcloud services enable pubsub.googleapis.com
+gcloud services enable secretmanager.googleapis.com
+2. Create Cloud SQL Database
+gcloud sql instances create shortshub-db \
+    --database-version=POSTGRES_15 \
+    --tier=db-f1-micro \
+    --region=us-central1
+
+gcloud sql databases create shortshub --instance=shortshub-db
+3. Create Storage Bucket
+gsutil mb gs://your-bucket-name
+gsutil iam ch allUsers:objectViewer gs://your-bucket-name
+4. Set up Secrets
+echo "your-jwt-secret" | gcloud secrets create jwt-secret --data-file=-
+echo "your-google-client-secret" | gcloud secrets create google-client-secret --data-file=-
+5. Build and Deploy
+npm run build
+gcloud app deploy
+6. Run Database Migrations
+cd server
+npm run migrate
+Post-Deployment Configuration
+Update Environment Variables
+
+Go to Google Cloud Console → App Engine → Settings → Environment Variables
+Add all required environment variables
+Configure OAuth
+
+Set up OAuth consent screen
+Add authorized redirect URIs
+Update client IDs and secrets
+Set up Domain Mapping
+
+gcloud app domain-mappings create your-domain.com
+Configure SSL Certificate
+
+SSL certificates are automatically managed by App Engine
+For custom domains, certificates are provisioned automatically
+Monitoring and Maintenance
+View Logs
+gcloud app logs tail -s default
+Monitor Performance
+Use Google Cloud Monitoring
+Set up alerts for errors and performance issues
+Backup Database
+gcloud sql export sql shortshub-db gs://your-bucket/backup.sql \
+    --database=shortshub
+Troubleshooting
+Common Issues
+Database Connection Issues
+
+Check Cloud SQL instance status
+Verify connection string format
+Ensure proper IAM permissions
+File Upload Issues
+
+Verify Cloud Storage bucket permissions
+Check file size limits
+Ensure proper CORS configuration
+OAuth Issues
+
+Verify redirect URIs
+Check OAuth consent screen configuration
+Ensure proper scopes are requested
+Debugging Commands
+# Check app status
+gcloud app describe
+
+# View recent deployments
+gcloud app versions list
+
+# Check Cloud SQL status
+gcloud sql instances describe shortshub-db
+
+# Test database connection
+gcloud sql connect shortshub-db --user=postgres
+Security Considerations
+Environment Variables
+
+Never commit secrets to version control
+Use Google Secret Manager for sensitive data
+Rotate secrets regularly
+Database Security
+
+Use strong passwords
+Enable SSL connections
+Restrict database access
+API Security
+
+Implement rate limiting
+Use HTTPS only
+Validate all inputs
+Scaling Considerations
+Auto Scaling
+
+Configure in app.yaml
+Monitor CPU and memory usage
+Set appropriate instance limits
+Database Scaling
+
+Monitor connection pool usage
+Consider read replicas for heavy read workloads
+Optimize database queries
+Storage Scaling
+
+Use Cloud CDN for static assets
+Implement proper caching strategies
+Monitor storage costs
+Cost Optimization
+App Engine
+
+Use F1 instances for development
+Configure auto-scaling limits
+Monitor instance hours
+Cloud SQL
+
+Use appropriate machine types
+Enable automated backups
+Monitor storage usage
+Cloud Storage
+
+Use lifecycle policies
+Choose appropriate storage classes
+Monitor transfer costs
+Support
+For issues and questions:
+
+Check Google Cloud documentation
+Review application logs
+Monitor system metrics
+Contact support if needed
+EOF
+echo "✅ All deployment files have been created successfully!"
+echo ""
+echo "📋 Next steps:"
+echo "1. Copy .env.example to .env and fill in your values"
+echo "2. Set up your Google Cloud project ID: export GCP_PROJECT_ID='your-project-id'"
+echo "3. Run: ./deploy.sh"
+echo "4. Follow the DEPLOYMENT.md guide for detailed instructions"
+echo ""
+echo "🚀 Happy deploying!"
+
+</changeScript></rawResChunk> -->
+
+<!-- <rawResChunk>Looking at the current project structure and the requirements for Google Cloud deployment, I'll create a comprehensive deployment setup that includes all necessary configuration files, scripts, and infrastructure setup.
+
+<context>
+<rationale>I need to check if there's already a main server entry point since the package.json references src/index.ts but I need to verify if it exists.</rationale>
+<generated_script>
+```shell
+find server -name "index.ts" -o -name "app.ts" -o -name "main.ts" | head -5
+</generated_script>
+<shell_result>
+server/src/middleware/index.ts
+</shell_result>
+
+I need to understand the current frontend structure and build setup to determine what deployment configurations are needed. ```shell ls -la | grep -E "(package\.json|vite\.config|webpack|tsconfig)" || echo "No build configs found" find . -maxdepth 2 -name "vite.config.*" -o -name "webpack.config.*" -o -name "tsconfig.json" ``` No build configs found ./server/tsconfig.json I need to check what Google Cloud services are already configured in the existing code to understand the deployment requirements. ```shell grep -r "google-cloud\|gcp\|@google" server/src/ | head -10 || echo "No GCP services found" ``` server/src/services/storageService.ts:import { Storage } from '@google-cloud/storage'; I need to examine the existing database configuration to understand what PostgreSQL setup is needed. ```shell cat server/src/config/db.ts ``` import { Pool } from 'pg';
+const pool = new Pool({
+connectionString: process.env.DATABASE_URL,
+ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+export { pool };
+</shell_result>
+
+I need to check if there are any existing environment configuration files to understand what environment variables are needed. ```shell find . -name ".env*" -o -name "*.env" | head -5 cat server/src/config/passport.ts | head -20 ``` import passport from 'passport'; import { Strategy as GoogleStrategy } from 'passport-google-oauth20'; import { pool } from './db';
+passport.use(new GoogleStrategy({
+clientID: process.env.GOOGLE_CLIENT_ID!,
+clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+callbackURL: ${process.env.SERVER_URL}/api/auth/google/callback
+}, async (accessToken, refreshToken, profile, done) => {
+try {
+// Check if user exists
+const existingUser = await pool.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
+
+if (existingUser.rows.length > 0) {
+  return done(null, existingUser.rows[0]);
+}
+
+// Create new user
+const newUser = await pool.query(
+  'INSERT INTO users (google_id, email, display_name, profile_picture) VALUES ($1, $2, $3, $4) RETURNING *',
+  [profile.id, profile.emails?.[0].value, profile.displayName, profile.photos?.[0].value]
+</shell_result>
+
+```shell # Create deployment directory structure mkdir -p deployment_scripts mkdir -p server/src mkdir -p database/migrations mkdir -p config
+Create the main deployment script
+cat << 'EOF' > deployment_scripts/setup_gcloud_deploy.sh
+#!/bin/bash
+
+set -e
+
+Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}🚀 ShortsHub Google Cloud Deployment Setup${NC}"
+
+Check if gcloud CLI is installed
+if ! command -v gcloud &> /dev/null; then
+echo -e "${RED}❌ Google Cloud CLI is not installed. Please install it first.${NC}"
+exit 1
+fi
+
+Set project configuration
+echo -e "${YELLOW}📋 Setting up project configuration...${NC}"
+read -p "Enter your Google Cloud Project ID: " PROJECT_ID
+read -p "Enter your desired region (e.g., us-central1): " REGION
+read -p "Enter your app name (default: shortshub): " APP_NAME
+APP_NAME=${APP_NAME:-shortshub}
+
+Configure gcloud
+gcloud config set project $PROJECT_ID
+gcloud config set compute/region $REGION
+
+Enable required APIs
+echo -e "${YELLOW}🔧 Enabling required Google Cloud APIs...${NC}"
+gcloud services enable
+cloudbuild.googleapis.com
+run.googleapis.com
+sqladmin.googleapis.com
+storage.googleapis.com
+secretmanager.googleapis.com
+containerregistry.googleapis.com
+artifactregistry.googleapis.com
+
+Create Cloud SQL instance
+echo -e "${YELLOW}🗄️ Creating Cloud SQL PostgreSQL instance...${NC}"
+gcloud sql instances create $APP_NAME-db
+--database-version=POSTGRES_15
+--tier=db-f1-micro
+--region=$REGION
+--storage-type=SSD
+--storage-size=10GB
+--backup-start-time=03:00
+--enable-bin-log
+--maintenance-window-day=SUN
+--maintenance-window-hour=4
+
+Create database
+gcloud sql databases create $APP_NAME --instance=$APP_NAME-db
+
+Create database user
+echo -e "${YELLOW}👤 Creating database user...${NC}"
+DB_PASSWORD=$(openssl rand -base64 32)
+gcloud sql users create $APP_NAME-user
+--instance=$APP_NAME-db
+--password=$DB_PASSWORD
+
+Create Cloud Storage bucket
+echo -e "${YELLOW}🪣 Creating Cloud Storage bucket...${NC}"
+gsutil mb gs://$PROJECT_ID-$APP_NAME-storage
+gsutil uniformbucketlevelaccess set on gs://$PROJECT_ID-$APP_NAME-storage
+
+Create secrets in Secret Manager
+echo -e "${YELLOW}🔐 Creating secrets...${NC}"
+echo $DB_PASSWORD | gcloud secrets create db-password --data-file=-
+echo $(openssl rand -base64 32) | gcloud secrets create jwt-secret --data-file=-
+
+Get connection string
+CONNECTION_NAME=$(gcloud sql instances describe $APP_NAME-db --format="value(connectionName)")
+DATABASE_URL="postgresql://$APP_NAME-user:$DB_PASSWORD@/$APP_NAME?host=/cloudsql/$CONNECTION_NAME"
+
+echo $DATABASE_URL | gcloud secrets create database-url --data-file=-
+
+Create service account for Cloud Run
+echo -e "${YELLOW}👨‍💼 Creating service account...${NC}"
+gcloud iam service-accounts create $APP_NAME-runner
+--display-name="$APP_NAME Cloud Run Service Account"
+
+Grant necessary permissions
+gcloud projects add-iam-policy-binding $PROJECT_ID
+--member="serviceAccount:$APP_NAME-runner@$PROJECT_ID.iam.gserviceaccount.com"
+--role="roles/cloudsql.client"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID
+--member="serviceAccount:$APP_NAME-runner@$PROJECT_ID.iam.gserviceaccount.com"
+--role="roles/storage.objectAdmin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID
+--member="serviceAccount:$APP_NAME-runner@$PROJECT_ID.iam.gserviceaccount.com"
+--role="roles/secretmanager.secretAccessor"
+
+echo -e "${GREEN}✅ Google Cloud infrastructure setup complete!${NC}"
+echo -e "${YELLOW}📝 Configuration Summary:${NC}"
+echo "Project ID: $PROJECT_ID"
+echo "Region: $REGION"
+echo "App Name: $APP_NAME"
+echo "Database Instance: $APP_NAME-db"
+echo "Storage Bucket: gs://$PROJECT_ID-$APP_NAME-storage"
+echo "Connection Name: $CONNECTION_NAME"
+
+Save configuration to file
+cat << CONFIG_EOF > config/gcloud-config.env
+PROJECT_ID=$PROJECT_ID
+REGION=$REGION
+APP_NAME=$APP_NAME
+DB_INSTANCE=$APP_NAME-db
+STORAGE_BUCKET=$PROJECT_ID-$APP_NAME-storage
+CONNECTION_NAME=$CONNECTION_NAME
+DATABASE_URL=$DATABASE_URL
+CONFIG_EOF
+
+echo -e "${GREEN}🎉 Setup complete! Run 'bash deployment_scripts/deploy.sh' to deploy your app.${NC}"
+EOF
+
+Make the script executable
+chmod +x deployment_scripts/setup_gcloud_deploy.sh
+
+Create the main server entry point
+cat << 'EOF' > server/src/index.ts
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import passport from 'passport';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Import routes
+import authRoutes from './api/authRoutes';
+import socialAuthRoutes from './api/socialAuthRoutes';
+import videoRoutes from './api/videoRoutes';
+import aiRoutes from './api/aiRoutes';
+
+// Import middleware
+import { authenticateToken } from './middleware/authMiddleware';
+
+// Load environment variables
+dotenv.config();
+
+// Initialize passport configuration
+import './config/passport';
+
+const app = express();
+const PORT = process.env.PORT || 8080;
+
+// Middleware
+app.use(helmet());
+app.use(cors({
+origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+credentials: true
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
+app.use(passport.initialize());
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+res.status(200).json({
+status: 'ok',
+timestamp: new Date().toISOString(),
+version: process.env.npm_package_version || '1.0.0'
+});
+});
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/auth', socialAuthRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/ai', aiRoutes);
+
+// Serve static files (React app)
+if (process.env.NODE_ENV === 'production') {
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+app.get('*', (req, res) => {
+res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+});
+}
+
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+console.error(err.stack);
+res.status(500).json({
+error: 'Something went wrong!',
+...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+});
+});
+
+// 404 handler
+app.use((req, res) => {
+res.status(404).json({ error: 'Route not found' });
+});
+
+app.listen(PORT, () => {
+console.log(🚀 Server is running on port ${PORT});
+console.log(📝 Environment: ${process.env.NODE_ENV || 'development'});
+});
+
+export default app;
+EOF
+
+Create Dockerfile
+cat << 'EOF' > Dockerfile
+
+Use official Node.js runtime as base image
+FROM node:18-alpine
+
+Set working directory
+WORKDIR /app
+
+Copy package files
+COPY server/package*.json ./
+COPY server/tsconfig.json ./
+
+Install dependencies
+RUN npm ci --only=production
+
+Copy server source code
+COPY server/src ./src
+
+Build TypeScript
+RUN npm run build
+
+Create frontend build directory
+RUN mkdir -p frontend/build
+
+Copy any existing frontend build files
+COPY index.html ./frontend/build/ 2>/dev/null || echo "No frontend build files found"
+COPY *.tsx ./frontend/build/ 2>/dev/null || echo "No React files found"
+COPY components ./frontend/build/components/ 2>/dev/null || echo "No components found"
+COPY pages ./frontend/build/pages/ 2>/dev/null || echo "No pages found"
+
+Expose port
+EXPOSE 8080
+
+Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3
+CMD curl -f http://localhost:8080/health || exit 1
+
+Start the server
+CMD ["npm", "start"]
+EOF
+
+Create App Engine configuration
+cat << 'EOF' > app.yaml
+runtime: nodejs18
+
+env_variables:
+NODE_ENV: production
+PORT: 8080
+
+automatic_scaling:
+min_instances: 1
+max_instances: 10
+target_cpu_utilization: 0.6
+
+resources:
+cpu: 1
+memory_gb: 0.5
+disk_size_gb: 10
+
+handlers:
+
+url: /health
+script: auto
+
+url: /api/.*
+script: auto
+
+url: /.*
+static_files: frontend/build/index.html
+upload: frontend/build/index.html
+
+url: /static
+static_dir: frontend/build/static
+
+vpc_access_connector:
+name: projects/PROJECT_ID/locations/REGION/connectors/shortshub-connector
+
+beta_settings:
+cloud_sql_instances: CONNECTION_NAME
+EOF
+
+Create Cloud Build configuration
+cat << 'EOF' > cloudbuild.yaml
+steps:
+
+Build the container image
+name: 'gcr.io/cloud-builders/docker'
+args: ['build', '-t', 'gcr.io/$PROJECT_ID/shortshub:$COMMIT_SHA', '.']
+Push the image to Container Registry
+name: 'gcr.io/cloud-builders/docker'
+args: ['push', 'gcr.io/$PROJECT_ID/shortshub:$COMMIT_SHA']
+Deploy to Cloud Run
+name: 'gcr.io/cloud-builders/gcloud'
+args:
+'run'
+'deploy'
+'shortshub'
+'--image'
+'gcr.io/$PROJECT_ID/shortshub:$COMMIT_SHA'
+'--region'
+'$_REGION'
+'--platform'
+'managed'
+'--allow-unauthenticated'
+'--set-env-vars'
+'NODE_ENV=production'
+'--set-cloudsql-instances'
+'$_CONNECTION_NAME'
+'--service-account'
+'shortshub-runner@$PROJECT_ID.iam.gserviceaccount.com'
+'--memory'
+'512Mi'
+'--concurrency'
+'1000'
+'--max-instances'
+'10'
+substitutions:
+_REGION: 'us-central1'
+_CONNECTION_NAME: 'PROJECT_ID:REGION:shortshub-db'
+
+options:
+logging: CLOUD_LOGGING_ONLY
+EOF
+
+Create database migration script
+cat << 'EOF' > database/migrations/001_initial_schema.sql
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+id SERIAL PRIMARY KEY,
+email VARCHAR(255) UNIQUE NOT NULL,
+password_hash VARCHAR(255),
+display_name VARCHAR(255),
+google_id VARCHAR(255),
+profile_picture TEXT,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Videos table
+CREATE TABLE IF NOT EXISTS videos (
+id SERIAL PRIMARY KEY,
+user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+title VARCHAR(255) NOT NULL,
+description TEXT,
+file_url TEXT NOT NULL,
+thumbnail_url TEXT,
+duration INTEGER,
+status VARCHAR(50) DEFAULT 'processing',
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AI generations table
+CREATE TABLE IF NOT EXISTS ai_generations (
+id SERIAL PRIMARY KEY,
+user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+type VARCHAR(50) NOT NULL, -- 'thumbnail', 'video', 'text'
+prompt TEXT NOT NULL,
+result_url TEXT,
+status VARCHAR(50) DEFAULT 'processing',
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+CREATE INDEX IF NOT EXISTS idx_videos_user_id ON videos(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_generations_user_id ON ai_generations(user_id);
+EOF
+
+Create migration runner
+cat << 'EOF' > database/migrate.js
+const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+const pool = new Pool({
+connectionString: process.env.DATABASE_URL,
+ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+async function runMigrations() {
+const client = await pool.connect();
+
+try {
+// Create migrations tracking table
+await client.query(CREATE TABLE IF NOT EXISTS schema_migrations ( version VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ););
+
+// Read migration files
+const migrationsDir = path.join(__dirname, 'migrations');
+const migrationFiles = fs.readdirSync(migrationsDir).sort();
+
+for (const file of migrationFiles) {
+  const version = file.replace('.sql', '');
+  
+  // Check if migration already applied
+  const result = await client.query(
+    'SELECT version FROM schema_migrations WHERE version = $1',
+    [version]
+  );
+  
+  if (result.rows.length === 0) {
+    console.log(`Applying migration: ${file}`);
+    
+    // Read and execute migration
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+    await client.query(sql);
+    
+    // Mark as applied
+    await client.query(
+      'INSERT INTO schema_migrations (version) VALUES ($1)',
+      [version]
+    );
+    
+    console.log(`✅ Migration ${file} applied successfully`);
+  } else {
+    console.log(`⏭️  Migration ${file} already applied`);
+  }
+}
+
+console.log('🎉 All migrations completed successfully');
+} catch (error) {
+console.error('❌ Migration failed:', error);
+process.exit(1);
+} finally {
+client.release();
+await pool.end();
+}
+}
+
+runMigrations();
+EOF
+
+Create deployment script
+cat << 'EOF' > deployment_scripts/deploy.sh
+#!/bin/bash
+
+set -e
+
+Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}🚀 Deploying ShortsHub to Google Cloud${NC}"
+
+Load configuration
+if [ -f "config/gcloud-config.env" ]; then
+source config/gcloud-config.env
+else
+echo -e "${RED}❌ Configuration file not found. Run setup_gcloud_deploy.sh first.${NC}"
+exit 1
+fi
+
+Set gcloud project
+gcloud config set project $PROJECT_ID
+
+Run database migrations
+echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
+export DATABASE_URL=$(gcloud secrets versions access latest --secret="database-url")
+node database/migrate.js
+
+Update App Engine config with actual values
+sed -i.bak "s/PROJECT_ID/$PROJECT_ID/g" app.yaml
+sed -i.bak "s/REGION/$REGION/g" app.yaml
+sed -i.bak "s/CONNECTION_NAME/$CONNECTION_NAME/g" app.yaml
+
+Update Cloud Build config
+sed -i.bak "s/PROJECT_ID/$PROJECT_ID/g" cloudbuild.yaml
+sed -i.bak "s/REGION/$REGION/g" cloudbuild.yaml
+sed -i.bak "s/CONNECTION_NAME/$CONNECTION_NAME/g" cloudbuild.yaml
+
+Build and deploy
+echo -e "${YELLOW}🔨 Building and deploying...${NC}"
+gcloud builds submit --config=cloudbuild.yaml
+
+Clean up temporary files
+rm -f app.yaml.bak cloudbuild.yaml.bak
+
+echo -e "${GREEN}✅ Deployment complete!${NC}"
+echo -e "${YELLOW}📝 Your app is now running on Google Cloud Run${NC}"
+
+Get the service URL
+SERVICE_URL=$(gcloud run services describe shortshub --region=$REGION --format="value(status.url)")
+echo -e "${GREEN}🌐 Service URL: 
+S
+E
+R
+V
+I
+C
+E
+U
+R
+L
+{NC}"
+EOF
+
+Make deploy script executable
+chmod +x deployment_scripts/deploy.sh
+
+Create environment template
+cat << 'EOF' > .env.example
+
+Database
+DATABASE_URL=postgresql://username:password@localhost:5432/shortshub
+
+JWT
+JWT_SECRET=your-jwt-secret-here
+
+Google Cloud
+GCP_PROJECT_ID=your-project-id
+GCS_BUCKET_NAME=your-bucket-name
+
+OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+Server
+PORT=8080
+NODE_ENV=development
+SERVER_URL=http://localhost:8080
+FRONTEND_URL=http://localhost:3000
+EOF
+
+Create .gcloudignore
+cat << 'EOF' > .gcloudignore
+.gcloudignore
+.git
+.gitignore
+README.md
+node_modules/
+npm-debug.log
+yarn-error.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+coverage/
+.vscode/
+.idea/
+*.log
+.DS_Store
+EOF
+
+Create root package.json for full-stack builds
+cat << 'EOF' > package.json
+{
+"name": "shortshub-fullstack",
+"version": "1.0.0",
+"description": "ShortsHub - Multi-platform video uploading and scheduling with AI",
+"main": "server/dist/index.js",
+"scripts": {
+"start": "npm run start:server",
+"start:server": "cd server && npm start",
+"dev": "concurrently "npm run dev:server" "npm run dev:frontend"",
+"dev:server": "cd server && npm run dev",
+"dev:frontend": "vite",
+"build": "npm run build:frontend && npm run build:server",
+"build:frontend": "vite build",
+"build:server": "cd server && npm run build",
+"deploy": "bash deployment_scripts/deploy.sh",
+"setup-gcloud": "bash deployment_scripts/setup_gcloud_deploy.sh",
+"migrate": "node database/migrate.js",
+"test": "cd server && npm test"
+},
+"dependencies": {
+"react": "^18.2.0",
+"react-dom": "^18.2.0",
+"react-router-dom": "^6.8.0",
+"axios": "^1.3.4",
+"lucide-react": "^0.263.1"
+},
+"devDependencies": {
+"@types/react": "^18.0.28",
+"@types/react-dom": "^18.0.11",
+"@vitejs/plugin-react": "^3.1.0",
+"typescript": "^4.9.5",
+"vite": "^4.1.4",
+"concurrently": "^7.6.0"
+}
+}
+EOF
+
+Create Vite configuration
+cat << 'EOF' > vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+plugins: [react()],
+server: {
+port: 3000,
+proxy: {
+'/api': {
+target: 'http://localhost:8080',
+changeOrigin: true,
+secure: false,
+},
+},
+},
+build: {
+outDir: 'server/frontend/build',
+emptyOutDir: true,
+},
+})
+EOF
+
+Create TypeScript configuration for the root
+cat << 'EOF' > tsconfig.json
+{
+"compilerOptions": {
+"target": "ES2020",
+"useDefineForClassFields": true,
+"lib": ["ES2020", "DOM", "DOM.Iterable"],
+"module": "ESNext",
+"skipLibCheck": true,
+"moduleResolution": "bundler",
+"allowImportingTsExtensions": true,
+"resolveJsonModule": true,
+"isolatedModules": true,
+"noEmit": true,
+"jsx": "react-jsx",
+"strict": true,
+"noUnusedLocals": true,
+"noUnusedParameters": true,
+"noFallthroughCasesInSwitch": true
+},
+"include": [
+".tsx",
+".ts",
+"components//*",
+"pages//*"
+],
+"references": [{ "path": "./tsconfig.node.json" }]
+}
+EOF
+
+Create additional TypeScript config for Node
+cat << 'EOF' > tsconfig.node.json
+{
+"compilerOptions": {
+"composite": true,
+"skipLibCheck": true,
+"module": "ESNext",
+"moduleResolution": "bundler",
+"allowSyntheticDefaultImports": true
+},
+"include": ["vite.config.ts"]
+}
+EOF
+
+Create README for deployment
+cat << 'EOF' > DEPLOYMENT.md
+
+ShortsHub Deployment Guide
+Prerequisites
+Google Cloud Account: Set up a Google Cloud Platform account
+Google Cloud CLI: Install and configure the gcloud CLI
+Node.js: Version 18 or higher
+Git: For version control
+Quick Start
+1. Initial Setup
+# Run the setup script to configure Google Cloud infrastructure
+bash deployment_scripts/setup_gcloud_deploy.sh
+This script will:
+
+Enable required Google Cloud APIs
+Create Cloud SQL PostgreSQL instance
+Set up Cloud Storage bucket
+Configure Secret Manager for sensitive data
+Create necessary IAM service accounts
+Generate configuration files
+2. Deploy Application
+# Deploy the application to Google Cloud
+bash deployment_scripts/deploy.sh
+This will:
+
+Run database migrations
+Build the application
+Deploy to Cloud Run
+Configure environment variables
+Manual Deployment Steps
+If you prefer to deploy manually:
+
+1. Set up Google Cloud Resources
+# Set your project ID
+export PROJECT_ID=your-project-id
+gcloud config set project $PROJECT_ID
+
+# Enable APIs
+gcloud services enable \
+    cloudbuild.googleapis.com \
+    run.googleapis.com \
+    sqladmin.googleapis.com \
+    storage.googleapis.com \
+    secretmanager.googleapis.com
+
+# Create Cloud SQL instance
+gcloud sql instances create shortshub-db \
+    --database-version=POSTGRES_15 \
+    --tier=db-f1-micro \
+    --region=us-central1
+
+# Create database and user
+gcloud sql databases create shortshub --instance=shortshub-db
+gcloud sql users create shortshub-user --instance=shortshub-db --password=your-password
+2. Configure Environment Variables
+# Create secrets in Secret Manager
+echo "your-jwt-secret" | gcloud secrets create jwt-secret --data-file=-
+echo "your-db-password" | gcloud secrets create db-password --data-file=-
+3. Build and Deploy
+# Build the application
+npm run build
+
+# Deploy to Cloud Run
+gcloud run deploy shortshub \
+    --source . \
+    --region=us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars NODE_ENV=production \
+    --set-cloudsql-instances $PROJECT_ID:us-central1:shortshub-db
+Environment Variables
+The application requires the following environment variables:
+
+DATABASE_URL: PostgreSQL connection string
+JWT_SECRET: Secret for JWT token signing
+GCP_PROJECT_ID: Google Cloud project ID
+GCS_BUCKET_NAME: Cloud Storage bucket name
+GOOGLE_CLIENT_ID: OAuth client ID
+GOOGLE_CLIENT_SECRET: OAuth client secret
+Monitoring and Maintenance
+View Logs
+# View application logs
+gcloud run services logs read shortshub --region=us-central1
+
+# View build logs
+gcloud builds log $(gcloud builds list --limit=1 --format="value(id)")
+Scale Application
+# Update Cloud Run service configuration
+gcloud run services update shortshub \
+    --region=us-central1 \
+    --max-instances=20 \
+    --concurrency=1000 \
+    --memory=1Gi
+Database Maintenance
+# Run migrations
+export DATABASE_URL=$(gcloud secrets versions access latest --secret="database-url")
+node database/migrate.js
+
+# Backup database
+gcloud sql export sql shortshub-db gs://your-backup-bucket/backup-$(date +%Y%m%d).sql \
+    --database=shortshub
+Troubleshooting
+Common Issues
+Database Connection: Ensure Cloud SQL instance is running and accessible
+Authentication: Verify OAuth credentials are correctly configured
+Storage: Check Cloud Storage bucket permissions
+Secrets: Ensure all secrets are properly created in Secret Manager
+Debug Commands
+# Check Cloud Run service status
+gcloud run services describe shortshub --region=us-central1
+
+# Test database connection
+gcloud sql connect shortshub-db --user=shortshub-user --database=shortshub
+
+# Verify secrets
+gcloud secrets versions access latest --secret="jwt-secret"
+Cost Optimization
+Use Cloud Run's automatic scaling to pay only for actual usage
+Configure appropriate instance limits
+Use Cloud SQL's automatic backups instead of manual exports
+Monitor usage with Google Cloud Monitoring
+Security Best Practices
+Never commit sensitive data to version control
+Use Secret Manager for all sensitive configuration
+Enable VPC connector for private database access
+Regular security updates for dependencies
+Configure proper IAM roles and permissions
+For more information, see the Google Cloud Run documentation.
+EOF
+
+echo "✅ Google Cloud deployment configuration complete!"
+echo ""
+echo "📋 Next steps:"
+echo "1. Run: bash deployment_scripts/setup_gcloud_deploy.sh"
+echo "2. Configure your environment variables"
+echo "3. Run: bash deployment_scripts/deploy.sh"
+echo ""
+echo "📁 Created files:"
+echo "- deployment_scripts/setup_gcloud_deploy.sh"
+echo "- deployment_scripts/deploy.sh"
+echo "- server/src/index.ts"
+echo "- Dockerfile"
+echo "- app.yaml"
+echo "- cloudbuild.yaml"
+echo "- database/migrations/001_initial_schema.sql"
+echo "- database/migrate.js"
+echo "- package.json"
+echo "- vite.config.ts"
+echo "- DEPLOYMENT.md"
+
+</changeScript></rawResChunk> -->
+
+<!-- <rawResChunk><planSummary>- Establish a complete Google Cloud deployment setup by adding a main Express server entry point (server/src/index.ts), creating App Engine (app.yaml) and Cloud Build (cloudbuild.yaml) configuration files, Dockerfile for containerization, root and server package.json files with necessary dependencies and scripts, Vite and TypeScript configurations, database schema and migration script, environment variable templates, a deployment shell script automating GCP resource provisioning and app deployment, health check API routes, .gcloudignore file, and detailed deployment documentation to enable seamless building, deploying, and managing the full-stack ShortsHub.app on Google Cloud.
+
+- Establish a complete Google Cloud deployment setup by adding deployment scripts for infrastructure provisioning and app deployment, creating a main Express server entry point (server/src/index.ts), Dockerfile, App Engine and Cloud Build configs, database migration scripts, root package.json with build and deploy commands, frontend build config (vite.config.ts), environment templates, and detailed deployment documentation to enable streamlined, secure, and scalable deployment of the ShortsHub application on Google Cloud.</planSummary></rawResChunk> -->
