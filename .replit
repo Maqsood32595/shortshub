@@ -48,7 +48,7 @@ args = "cd shortshub/server && npm run build"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node shortshub/index.js"
+args = "cd shortshub/server && npm start"
 
 [[ports]]
 localPort = 5000
