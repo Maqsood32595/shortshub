@@ -2,69 +2,92 @@
 import express from 'express';
 import passport from 'passport';
 import { authenticateToken } from '../middleware/authMiddleware';
+import pool from '../config/db';
 
 const router = express.Router();
 
-// Google OAuth routes
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
+// Get connected social accounts
+router.get('/connections', authenticateToken, async (req: any, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT provider, provider_id, display_name, channel_id, created_at FROM social_accounts WHERE user_id = $1',
+      [req.user.id]
+    );
+    
+    res.json({ connections: result.rows });
+  } catch (error) {
+    console.error('Get connections error:', error);
+    res.status(500).json({ error: 'Failed to fetch connections' });
+  }
+});
+
+// Connect YouTube account
+router.get('/youtube', authenticateToken, passport.authenticate('youtube', {
+  scope: [
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/userinfo.email'
+  ]
 }));
 
-router.get('/google/callback', 
-  passport.authenticate('google', { session: false }),
-  (req, res) => {
-    // Handle successful authentication
-    res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
-  }
-);
-
-// YouTube OAuth routes
-router.get('/youtube', authenticateToken, passport.authenticate('youtube'));
-
-router.get('/youtube/callback',
+// YouTube callback
+router.get('/youtube/callback', 
   authenticateToken,
   passport.authenticate('youtube', { session: false }),
-  (req, res) => {
-    // Handle YouTube connection
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}#settings`);
+  (req: any, res) => {
+    // Connection successful, redirect to frontend
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/settings?connected=youtube`);
   }
 );
 
-// Get connected platforms
-router.get('/connections', authenticateToken, (req, res) => {
-  // Mock platform connections
-  const connections = {
-    youtube: false,
-    tiktok: false, 
-    instagram: false
-  };
-  
-  res.json({ connections });
-});
-
-// Connect platform
-router.post('/connect/:platform', authenticateToken, (req, res) => {
-  const { platform } = req.params;
-  
-  if (!['youtube', 'tiktok', 'instagram'].includes(platform)) {
-    return res.status(400).json({ error: 'Invalid platform' });
+// Disconnect social account
+router.delete('/disconnect/:provider', authenticateToken, async (req: any, res) => {
+  try {
+    const provider = req.params.provider;
+    
+    const result = await pool.query(
+      'DELETE FROM social_accounts WHERE user_id = $1 AND provider = $2 RETURNING *',
+      [req.user.id, provider]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+    
+    res.json({ message: `${provider} account disconnected successfully` });
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    res.status(500).json({ error: 'Failed to disconnect account' });
   }
-  
-  // Mock connection success
-  res.json({ 
-    message: `${platform} connected successfully`,
-    connected: true 
-  });
 });
 
-// Disconnect platform
-router.delete('/disconnect/:platform', authenticateToken, (req, res) => {
-  const { platform } = req.params;
-  
-  res.json({ 
-    message: `${platform} disconnected successfully`,
-    connected: false 
-  });
+// Get YouTube channel info
+router.get('/youtube/channel', authenticateToken, async (req: any, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM social_accounts WHERE user_id = $1 AND provider = $2',
+      [req.user.id, 'youtube']
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'YouTube account not connected' });
+    }
+    
+    const account = result.rows[0];
+    
+    // Here you would typically use the access token to fetch channel data from YouTube API
+    res.json({ 
+      channel: {
+        id: account.channel_id,
+        name: account.display_name,
+        connected: true
+      }
+    });
+  } catch (error) {
+    console.error('Get YouTube channel error:', error);
+    res.status(500).json({ error: 'Failed to fetch YouTube channel info' });
+  }
 });
 
 export default router;

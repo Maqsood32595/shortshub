@@ -5,35 +5,38 @@ declare module 'passport-youtube-v3' {
   export interface Profile {
     id: string;
     displayName: string;
-    name?: {
-      familyName: string;
-      givenName: string;
+    _json: {
+      items: Array<{
+        id: string;
+        snippet?: {
+          title: string;
+          description: string;
+        };
+      }>;
     };
-    emails?: Array<{
-      value: string;
-      verified?: boolean;
-    }>;
-    photos?: Array<{
-      value: string;
-    }>;
-    provider: string;
-    _raw: string;
-    _json: any;
   }
-
+  
   export interface StrategyOptions {
     clientID: string;
     clientSecret: string;
     callbackURL: string;
     scope?: string[];
+    passReqToCallback?: boolean;
+    authorizationParams?: {
+      access_type?: string;
+      prompt?: string;
+    };
   }
-
+  
   export interface VerifyFunction {
     (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void): void;
   }
-
+  
+  export interface VerifyFunctionWithRequest {
+    (req: any, accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void): void;
+  }
+  
   export class Strategy extends OAuth2Strategy {
-    constructor(options: StrategyOptions, verify: VerifyFunction);
-    name: string;
+    constructor(options: StrategyOptions, verify: VerifyFunction | VerifyFunctionWithRequest);
   }
 }

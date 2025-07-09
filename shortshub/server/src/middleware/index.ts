@@ -9,7 +9,7 @@ import videoRoutes from '../api/videoRoutes';
 import aiRoutes from '../api/aiRoutes';
 import socialAuthRoutes from '../api/socialAuthRoutes';
 
-import './config/passport'; // Initialize passport config
+import '../config/passport'; // Initialize passport config
 
 // Load environment variables from .env file
 dotenv.config();
