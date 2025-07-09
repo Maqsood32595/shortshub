@@ -3,6 +3,7 @@ run = "node index.js"
 
 [nix]
 channel = "stable-24_05"
+packages = ["nano"]
 
 [deployment]
 run = ["sh", "-c", "cd server && npm run build && npm start"]
