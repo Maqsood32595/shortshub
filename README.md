@@ -1,5 +1,5 @@
 
-# ShortsHub.app - AI-Powered Social Video Management
+# ShortsHub.app - Shorts Multi-Platform Uploading and Scheduling & Google Veo AI
 
 ShortsHub is a full-stack web application that empowers content creators to efficiently repurpose, create, schedule, and publish short-form video content across multiple social media platforms like YouTube Shorts, TikTok, and Instagram Reels.
 
