@@ -1,137 +1,79 @@
-import { Router } from 'express';
-import { authMiddleware } from '../middleware/authMiddleware';
-import pool from '../config/db';
-import multer from 'multer';
-import { uploadFile } from '../services/storageService';
+import express from 'express';
+import { authenticateToken } from '../middleware/authMiddleware';
 
-const router = Router();
+const router = express.Router();
 
-// Configure multer for in-memory file storage
-const storage = multer.memoryStorage();
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 100 * 1024 * 1024 } // 100 MB limit
+// Mock video storage
+const videos: any[] = [
+  {
+    id: '1',
+    title: 'Getting Started with React',
+    thumbnailUrl: 'https://picsum.photos/400/300?random=1',
+    duration: '15:30',
+    description: 'A comprehensive guide to React fundamentals'
+  },
+  {
+    id: '2', 
+    title: 'JavaScript ES6 Features',
+    thumbnailUrl: 'https://picsum.photos/400/300?random=2',
+    duration: '12:45',
+    description: 'Exploring modern JavaScript features'
+  }
+];
+
+const creations: any[] = [];
+
+// Get user's videos
+router.get('/', authenticateToken, (req, res) => {
+  res.json({ videos });
 });
 
-// GET all videos for the logged-in user
-router.get('/', authMiddleware, async (req, res) => {
-    try {
-        const result = await pool.query(
-            'SELECT * FROM videos WHERE user_id = $1 ORDER BY created_at DESC',
-            [req.user.id]
-        );
-        // Transform snake_case to camelCase for the frontend
-        const videos = result.rows.map(row => ({
-            id: row.id,
-            title: row.title,
-            description: row.description,
-            thumbnailUrl: row.thumbnail_url,
-            videoUrl: row.gcs_url,
-            duration: row.duration_seconds ? new Date(row.duration_seconds * 1000).toISOString().substr(14, 5) : '00:00', // Format seconds to MM:SS
-            type: row.source,
-            originalVideoId: row.original_video_id,
-            originalVideoThumbnailUrl: row.original_video_thumbnail_url,
-            generatedThumbnailUrl: row.generated_thumbnail_url,
-        }));
-
-        res.json(videos);
-    } catch (error) {
-        console.error('Error fetching videos:', error);
-        res.status(500).json({ error: 'Server error while fetching videos.' });
-    }
+// Get video by ID
+router.get('/:id', authenticateToken, (req, res) => {
+  const video = videos.find(v => v.id === req.params.id);
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+  res.json({ video });
 });
 
-// POST a new video upload
-router.post('/upload', authMiddleware, upload.single('video'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No video file uploaded.' });
-    }
-
-    try {
-        const gcsUrl = await uploadFile(req.file);
-        const title = req.file.originalname.replace(/\.[^/.]+$/, "");
-        const description = 'User uploaded video';
-        const source = 'uploaded';
-        const duration_seconds = 0; // Placeholder
-        const thumbnail_url = gcsUrl; // Use video URL as placeholder thumbnail for now
-
-        const newVideo = await pool.query(
-            `INSERT INTO videos (user_id, title, description, gcs_url, thumbnail_url, duration_seconds, source) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             RETURNING id, title, thumbnail_url, duration_seconds`,
-            [req.user.id, title, description, gcsUrl, thumbnail_url, duration_seconds, source]
-        );
-        
-        const video = newVideo.rows[0];
-
-        res.status(201).json({
-            id: video.id,
-            title: video.title,
-            thumbnailUrl: video.thumbnail_url,
-            videoUrl: gcsUrl,
-            duration: new Date(video.duration_seconds * 1000).toISOString().substr(14, 5),
-            type: source,
-        });
-
-    } catch (error) {
-        console.error('Error uploading video:', error);
-        res.status(500).json({ error: 'Failed to upload video.' });
-    }
+// Get user's creations/shorts
+router.get('/user/creations', authenticateToken, (req, res) => {
+  res.json({ creations });
 });
 
-// POST to save a repurposed video from an existing one
-router.post('/save-repurpose', authMiddleware, async (req, res) => {
-    const { idea, originalVideoId } = req.body;
-    if (!idea || !originalVideoId) {
-        return res.status(400).json({ error: 'Missing idea or original video ID.' });
+// Create new short from video
+router.post('/:id/create-short', authenticateToken, (req, res) => {
+  const { title, description, idea } = req.body;
+  const video = videos.find(v => v.id === req.params.id);
+
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const creation = {
+    id: creations.length + 1,
+    type: 'ai-generated',
+    title: title || `Short from ${video.title}`,
+    description: description || `Generated short based on: ${idea}`,
+    timestamp: new Date().toISOString(),
+    originalVideoId: video.id,
+    originalVideoThumbnailUrl: video.thumbnailUrl,
+    generatedThumbnailUrl: `https://picsum.photos/400/600?random=${creations.length + 10}`,
+    videoUrl: `https://sample-videos.com/zip/10/mp4/SampleVideo_360x240_1mb.mp4`,
+    platformReady: {
+      youtube: true,
+      tiktok: true,
+      instagram: true
     }
+  };
 
-    try {
-        // Fetch original video details
-        const originalVideoRes = await pool.query('SELECT thumbnail_url FROM videos WHERE id = $1 AND user_id = $2', [originalVideoId, req.user.id]);
-        if(originalVideoRes.rowCount === 0) {
-            return res.status(404).json({ error: 'Original video not found.' });
-        }
-        const originalVideoThumbnailUrl = originalVideoRes.rows[0].thumbnail_url;
+  creations.push(creation);
 
-        const { title, description, generatedThumbnailUrl } = idea;
-        
-        const result = await pool.query(
-            `INSERT INTO videos (user_id, title, description, source, original_video_id, original_video_thumbnail_url, generated_thumbnail_url, thumbnail_url)
-             VALUES ($1, $2, $3, 'generated', $4, $5, $6, $7)
-             RETURNING id`,
-            [req.user.id, title, description, originalVideoId, originalVideoThumbnailUrl, generatedThumbnailUrl, generatedThumbnailUrl || originalVideoThumbnailUrl]
-        );
-
-        res.status(201).json({ success: true, id: result.rows[0].id });
-
-    } catch (error) {
-        console.error('Error saving repurposed short:', error);
-        res.status(500).json({ error: 'Failed to save repurposed short.' });
-    }
+  res.status(201).json({
+    message: 'Short created successfully',
+    creation
+  });
 });
-
-// POST to save an AI generated video
-router.post('/save-ai-video', authMiddleware, async (req, res) => {
-    const { title, description, videoUrl } = req.body;
-     if (!title || !description || !videoUrl) {
-        return res.status(400).json({ error: 'Missing title, description, or video URL.' });
-    }
-    
-    try {
-        const result = await pool.query(
-            `INSERT INTO videos (user_id, title, description, source, gcs_url, thumbnail_url)
-             VALUES ($1, $2, $3, 'ai-generated', $4, $5)
-             RETURNING id`,
-            [req.user.id, title, description, videoUrl, videoUrl] // Use video URL as its own thumbnail for now
-        );
-        
-        res.status(201).json({ success: true, id: result.rows[0].id });
-    } catch (error) {
-        console.error('Error saving AI video:', error);
-        res.status(500).json({ error: 'Failed to save AI video.' });
-    }
-});
-
 
 export default router;

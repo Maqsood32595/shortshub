@@ -1,56 +1,70 @@
-import { Router } from 'express';
+
+import express from 'express';
 import passport from 'passport';
-import { authMiddleware } from '../middleware/authMiddleware';
-import pool from '../config/db';
+import { authenticateToken } from '../middleware/authMiddleware';
 
-const router = Router();
+const router = express.Router();
 
-// --- Connect to YouTube ---
+// Google OAuth routes
+router.get('/google', passport.authenticate('google', {
+  scope: ['profile', 'email']
+}));
 
-// Initiates the YouTube account connection flow
-router.get('/youtube', authMiddleware, passport.authenticate('youtube'));
-
-// YouTube OAuth callback route
-router.get(
-    '/youtube/callback',
-    authMiddleware,
-    passport.authenticate('youtube', { failureRedirect: '/#settings', session: false }),
-    (req, res) => {
-        // Successful connection. Passport has saved the tokens.
-        // Redirect back to the settings page on the frontend.
-        res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/#settings`);
-    }
+router.get('/google/callback', 
+  passport.authenticate('google', { session: false }),
+  (req, res) => {
+    // Handle successful authentication
+    res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
+  }
 );
 
+// YouTube OAuth routes
+router.get('/youtube', authenticateToken, passport.authenticate('youtube'));
 
-// --- Get Connection Statuses ---
+router.get('/youtube/callback',
+  authenticateToken,
+  passport.authenticate('youtube', { session: false }),
+  (req, res) => {
+    // Handle YouTube connection
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}#settings`);
+  }
+);
 
-router.get('/connections', authMiddleware, async (req, res) => {
-    try {
-        const result = await pool.query(
-            'SELECT provider FROM social_accounts WHERE user_id = $1',
-            [req.user.id]
-        );
-
-        const connections = {
-            youtube: false,
-            tiktok: false,
-            instagram: false,
-        };
-
-        result.rows.forEach(row => {
-            if (row.provider in connections) {
-                connections[row.provider as keyof typeof connections] = true;
-            }
-        });
-        
-        res.json(connections);
-
-    } catch (error) {
-        console.error('Error fetching connection statuses:', error);
-        res.status(500).json({ error: 'Failed to get connection statuses.' });
-    }
+// Get connected platforms
+router.get('/connections', authenticateToken, (req, res) => {
+  // Mock platform connections
+  const connections = {
+    youtube: false,
+    tiktok: false, 
+    instagram: false
+  };
+  
+  res.json({ connections });
 });
 
+// Connect platform
+router.post('/connect/:platform', authenticateToken, (req, res) => {
+  const { platform } = req.params;
+  
+  if (!['youtube', 'tiktok', 'instagram'].includes(platform)) {
+    return res.status(400).json({ error: 'Invalid platform' });
+  }
+  
+  // Mock connection success
+  res.json({ 
+    message: `${platform} connected successfully`,
+    connected: true 
+  });
+});
+
+// Disconnect platform
+router.delete('/disconnect/:platform', authenticateToken, (req, res) => {
+  const { platform } = req.params;
+  
+  res.json({ 
+    message: `${platform} disconnected successfully`,
+    connected: false 
+  });
+});
 
 export default router;

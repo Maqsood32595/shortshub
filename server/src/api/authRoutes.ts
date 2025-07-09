@@ -1,123 +1,126 @@
-import { Router } from 'express';
+
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import pool from '../config/db';
-import { authMiddleware } from '../middleware/authMiddleware';
-import passport from 'passport';
+import { authenticateToken } from '../middleware/authMiddleware';
 
-const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret';
+const router = express.Router();
 
-// Register a new user
+// Mock user storage (replace with database in production)
+const users: any[] = [];
+
+// Register endpoint
 router.post('/register', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required.' });
-    }
-
-    try {
-        const salt = await bcrypt.genSalt(10);
-        const password_hash = await bcrypt.hash(password, salt);
-
-        const newUser = await pool.query(
-            'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
-            [username, password_hash]
-        );
-
-        res.status(201).json(newUser.rows[0]);
-    } catch (error: any) {
-        if (error.code === '23505') { // Unique constraint violation
-            return res.status(409).json({ error: 'Username already exists.' });
-        }
-        console.error(error);
-        res.status(500).json({ error: 'Server error during registration.' });
-    }
-});
-
-// Login a user
-router.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required.' });
-    }
+  try {
+    const { email, password, name } = req.body;
     
-    try {
-        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-        const user = result.rows[0];
-
-        if (!user || !user.password_hash) {
-            return res.status(401).json({ error: 'Invalid credentials.' });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials.' });
-        }
-
-        const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        } as any);
-
-        res.json({ id: user.id, username: user.username });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error during login.' });
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Check if user already exists
+    const existingUser = users.find(u => u.email === email);
+    if (existingUser) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create user
+    const user = {
+      id: users.length + 1,
+      email,
+      name,
+      password: hashedPassword,
+      createdAt: new Date()
+    };
+    
+    users.push(user);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: { id: user.id, email: user.email, name: user.name }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-// Logout a user
+// Login endpoint
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing email or password' });
+    }
+
+    // Find user
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    res.json({
+      message: 'Login successful',
+      user: { id: user.id, email: user.email, name: user.name }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get current user
+router.get('/me', authenticateToken, (req, res) => {
+  const user = users.find(u => u.id === req.user.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json({
+    user: { id: user.id, email: user.email, name: user.name }
+  });
+});
+
+// Logout endpoint
 router.post('/logout', (req, res) => {
-    res.clearCookie('token');
-    res.status(200).json({ message: 'Logged out successfully.' });
+  res.clearCookie('token');
+  res.json({ message: 'Logged out successfully' });
 });
-
-// Get current user (check auth status)
-router.get('/me', authMiddleware, async (req, res) => {
-    try {
-        const result = await pool.query('SELECT id, username, email FROM users WHERE id = $1', [req.user.id]);
-        const user = result.rows[0];
-        if (!user) {
-            return res.status(404).json({ error: 'User not found.' });
-        }
-        res.json(user);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error.' });
-    }
-});
-
-
-// --- Google OAuth Routes ---
-
-// Initiates the Google OAuth flow
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-// Google OAuth callback route
-router.get(
-    '/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login', session: false }),
-    (req: express.Request, res: express.Response) => {
-        // On successful authentication, passport attaches the user to req.user.
-        // We generate a JWT and set it as a cookie.
-        const token = jwt.sign({ id: req.user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-        } as any);
-
-        // Redirect to the frontend application
-        res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
-    }
-);
-
 
 export default router;
