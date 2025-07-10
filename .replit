@@ -1,12 +1,12 @@
 modules = ["nodejs-20", "web"]
-run = "npm start"
+run = "cd shortshub/server && npm start"
 
 [nix]
 channel = "stable-24_05"
-packages = ["nano"]
+packages = ["nano", "tree"]
 
 [deployment]
-run = ["sh", "-c", "npm run build && npm start"]
+run = ["sh", "-c", "cd shortshub/server && npm run build && npm start"]
 
 [workflows]
 runButton = "Build and Start"
@@ -18,7 +18,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "cd shortshub/server && npm start"
 
 [[workflows.workflow]]
 name = "Build and Start"
@@ -27,15 +27,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm start"
+args = "cd shortshub/server && npm start"
 
 [[ports]]
 localPort = 5000

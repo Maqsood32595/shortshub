@@ -1,0 +1,93 @@
+src/api/aiRoutes.ts:13:51 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response) => Promise<void>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'req' and 'req' are incompatible.
+          Type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>' is not assignable to type 'AuthenticatedRequest'.
+            Types of property 'user' are incompatible.
+              Type 'User | undefined' is not assignable to type '{ userId: number; } | undefined'.
+                Property 'userId' is missing in type 'User' but required in type '{ userId: number; }'.
+
+13 router.post('/generate-ideas', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  src/api/aiRoutes.ts:8:5
+    8     userId: number;
+          ~~~~~~
+    'userId' is declared here.
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/api/videoRoutes.ts:23:36 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'req' and 'req' are incompatible.
+          Type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>' is not assignable to type 'AuthenticatedRequest'.
+            Types of property 'user' are incompatible.
+              Type 'User | undefined' is not assignable to type '{ userId: number; } | undefined'.
+                Property 'userId' is missing in type 'User' but required in type '{ userId: number; }'.
+
+23 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  src/api/videoRoutes.ts:18:5
+    18     userId: number;
+           ~~~~~~
+    'userId' is declared here.
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/api/videoRoutes.ts:40:67 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'req' and 'req' are incompatible.
+          Type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>' is not assignable to type 'AuthenticatedRequest'.
+            Types of property 'user' are incompatible.
+              Type 'User | undefined' is not assignable to type '{ userId: number; } | undefined'.
+                Property 'userId' is missing in type 'User' but required in type '{ userId: number; }'.
+
+40 router.post('/upload', authenticateToken, upload.single('video'), async (req: AuthenticatedRequest, res: Response) => {
+                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  src/api/videoRoutes.ts:18:5
+    18     userId: number;
+           ~~~~~~
+    'userId' is declared here.
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+
+Found 3 errors in 2 files.
+
+Errors  Files
+     1  src/api/aiRoutes.ts:13
+     2  src/api/videoRoutes.ts:23
