@@ -1,12 +1,12 @@
 modules = ["nodejs-20", "web"]
-run = "node index.js"
+run = "npm start"
 
 [nix]
 channel = "stable-24_05"
 packages = ["nano"]
 
 [deployment]
-run = ["sh", "-c", "cd server && npm run build && npm start"]
+run = ["sh", "-c", "npm run build && npm start"]
 
 [workflows]
 runButton = "Build and Start"
@@ -18,16 +18,11 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm run dev"
-
-[[workflows.workflow]]
-name = "Start Server"
-author = 43702182
-mode = "sequential"
+args = "npm run dev"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm run build && npm start"
+args = "cd server && npm run dev"
 
 [[workflows.workflow]]
 name = "Build and Start"
@@ -36,19 +31,19 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd shortshub && npm install --legacy-peer-deps"
+args = "npm install"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd shortshub/server && npm install --legacy-peer-deps"
+args = "cd server && npm install"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd shortshub/server && npm run build"
+args = "cd server && npm run build"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd shortshub/server && npm start"
+args = "npm start"
 
 [[ports]]
 localPort = 5000
