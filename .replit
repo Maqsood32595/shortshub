@@ -20,10 +20,6 @@ mode = "sequential"
 task = "shell.exec"
 args = "npm run dev"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && npm run dev"
-
 [[workflows.workflow]]
 name = "Build and Start"
 author = 43702182
@@ -35,11 +31,7 @@ args = "npm install"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm install"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && npm run build"
+args = "npm run build"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -47,8 +39,4 @@ args = "npm start"
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 5001
 externalPort = 80
