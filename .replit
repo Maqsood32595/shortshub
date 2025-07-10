@@ -1,0 +1,59 @@
+modules = ["nodejs-20", "web"]
+run = "node index.js"
+
+[nix]
+channel = "stable-24_05"
+packages = ["nano"]
+
+[deployment]
+run = ["sh", "-c", "cd server && npm run build && npm start"]
+
+[workflows]
+runButton = "Build and Start"
+
+[[workflows.workflow]]
+name = "Development"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run dev"
+
+[[workflows.workflow]]
+name = "Start Server"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run build && npm start"
+
+[[workflows.workflow]]
+name = "Build and Start"
+author = 43702182
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub && npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub/server && npm install --legacy-peer-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub/server && npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd shortshub/server && npm start"
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5001
+externalPort = 80
