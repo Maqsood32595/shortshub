@@ -1,0 +1,62 @@
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import pool from '../db';
+
+passport.use('google', new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackURL: `${process.env.SERVER_URL || 'http://localhost:5000'}/api/auth/google/callback`
+},
+async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
+    const { id, displayName, emails } = profile;
+    const email = emails?.[0].value;
+
+    if (!email) {
+        return done(new Error("No email found in Google profile"), undefined);
+    }
+    
+    try {
+        let userResult = await pool.query('SELECT * FROM users WHERE google_id = $1', [id]);
+        let user = userResult.rows[0];
+
+        if (user) {
+            return done(null, user);
+        } 
+        
+        userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        user = userResult.rows[0];
+        
+        if (user) {
+            const updatedUserResult = await pool.query(
+                'UPDATE users SET google_id = $1, updated_at = NOW() WHERE email = $2 RETURNING *',
+                [id, email]
+            );
+            return done(null, updatedUserResult.rows[0]);
+        } else {
+            const newUserResult = await pool.query(
+                'INSERT INTO users (email, google_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
+                [email, id]
+            );
+            return done(null, newUserResult.rows[0]);
+        }
+    } catch (err) {
+        console.error('Google OAuth error:', err);
+        return done(err, undefined);
+    }
+}));
+
+passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id: number, done) => {
+    try {
+        const result = await pool.query('SELECT id, email, google_id FROM users WHERE id = $1', [id]);
+        const user = result.rows[0];
+        done(null, user || false);
+    } catch (err) {
+        done(err, null);
+    }
+});
+
+export default passport;
