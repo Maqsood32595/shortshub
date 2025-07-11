@@ -1,0 +1,38 @@
+runtime: nodejs18
+
+env_variables:
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL}
+  JWT_SECRET: ${JWT_SECRET}
+  CLIENT_URL: ${CLIENT_URL}
+  SERVER_URL: ${SERVER_URL}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
+  YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET}
+  API_KEY: ${API_KEY}
+  GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+  GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+handlers:
+  - url: /health
+    script: auto
+    secure: always
+    
+  - url: /api/.*
+    script: auto
+    secure: always
+    
+  - url: /.*
+    script: auto
+    secure: always
